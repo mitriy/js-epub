@@ -1,24 +1,16 @@
 (function (GLOBAL) {
     var JSEpub = function (blob) {
         this.blob = blob;
-    }
+    };
 
     GLOBAL.JSEpub = JSEpub;
 
     JSEpub.prototype = {
-        // For mockability
-        unzipper: function (blob) {
-            return new JSUnzip(blob);
-        },
-        inflate: function(blob) {
-            return JSInflate.inflate(blob);
-        },
-
         // None-blocking processing of the EPUB. The notifier callback will
         // get called with a number and a optional info parameter on various
         // steps of the processing:
         //
-        //  1: Unzipping
+        //  1: Unzipp(ing|ed). Number of total files passed as 2nd argument
         //  2: Uncompressing file. File name passed as 2nd argument.
         //  3: Reading OPF
         //  4: Post processing
@@ -28,45 +20,48 @@
         //  -1: File is not a proper Zip file.
         processInSteps: function (notifier) {
             notifier(1);
-            if (this.unzipBlob(notifier) === false) {
-                return;
-            }
-
-            this.files = {};
-            this.uncompressNextCompressedFile(notifier);
-            // When all files are decompressed, uncompressNextCompressedFile
-            // will continue with the next step.
-        },
-
-        unzipBlob: function (notifier) {
-            var unzipper = this.unzipper(this.blob);
-            if (!unzipper.isZipFile()) {
-                notifier(-1);
-                return false;
-            }
-
-            unzipper.readEntries();
-            this.compressedFiles = unzipper.entries;
-        },
-
-        uncompressNextCompressedFile: function (notifier) {
             var self = this;
-            var compressedFile = this.compressedFiles.shift();
-            if (compressedFile) {
-                notifier(2, compressedFile.fileName);
-                this.uncompressFile(compressedFile);
-                this.withTimeout(this.uncompressNextCompressedFile, notifier);
-            } else {
-                this.didUncompressAllFiles(notifier);
-            }
+
+            this.unzipBlob(notifier)
+                .then(function () {
+                    notifier(1, self.compressedFiles.length);
+                    self.files = {};
+
+                    self.uncompressAllFiles(notifier)
+                        .then(self.didUncompressAllFiles.bind(self, notifier))
+                        .catch(function () {
+                            notifier(-1);
+                            console.error('uncompress error', arguments);
+                        });
+                })
+                .catch(notifier.bind(null, -1));
         },
-        
-        // For mockability
-        withTimeout: function (func, notifier) {
+
+        unzipBlob: function () {
             var self = this;
-            setTimeout(function () {
-                func.call(self, notifier);
-            }, 30);
+
+            return new Promise(function (resolve, reject) {
+                zip.createReader(new zip.BlobReader(self.blob), function(zipReader) {
+                    zipReader.getEntries(function (entries) {
+                        self.compressedFiles = entries;
+                        resolve();
+                    });
+                }, reject);
+            });
+        },
+
+        uncompressAllFiles: function (notifier) {
+            var self = this;
+
+            return this.compressedFiles.reduce(
+                function (previous, item) {
+                    return previous.then(function (previousValue) {
+                        notifier(2, previousValue);
+                        return self.uncompressFile(item);
+                    })
+                },
+                new Promise(function (resolve) { resolve(); })
+            );
         },
 
         didUncompressAllFiles: function (notifier) {
@@ -80,24 +75,24 @@
         },
 
         uncompressFile: function (compressedFile) {
-            var data;
-            if (compressedFile.compressionMethod === 0) {
-                data = compressedFile.data;
-            } else if (compressedFile.compressionMethod === 8) {
-                data = this.inflate(compressedFile.data);
-            } else {
-                throw new Error("Unknown compression method "
-                                + compressedFile.compressionMethod 
-                                + " encountered.");
-            }
+            var writer = new zip.TextWriter();
+            var self = this;
 
-            if (compressedFile.fileName === "META-INF/container.xml") {
-                this.container = data;
-            } else if (compressedFile.fileName === "mimetype") {
-                this.mimetype = data;
-            } else {
-                this.files[compressedFile.fileName] = data;
-            }
+            return new Promise(function (resolve, reject) {
+                compressedFile.getData(writer, function(data) {
+                    if (compressedFile.filename === "META-INF/container.xml") {
+                        self.container = data;
+                    } else if (compressedFile.filename === "mimetype") {
+                        self.mimetype = data;
+                    } else {
+                        self.files[compressedFile.filename] = data;
+                    }
+                    resolve(compressedFile.filename);
+
+                }, function (e) {
+                    // console.log('uncompress %s progress %o', compressedFile.filename, e);
+                });
+            });
         },
 
         getOpfPathFromContainer: function () {
@@ -109,7 +104,7 @@
 
         readOpf: function (xml) {
             var doc = this.xmlDocument(xml);
-            
+
             var opf = {
                 metadata: {},
                 manifest: {},
@@ -229,8 +224,7 @@
         },
 
         postProcessHTML: function (href) {
-            var xml = decodeURIComponent(escape(this.files[href]));
-            var doc = this.xmlDocument(xml);
+            var doc = this.xmlDocument(this.files[href]);
 
             var images = doc.getElementsByTagName("img");
             for (var i = 0, il = images.length; i < il; i++) {

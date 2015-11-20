@@ -4,3 +4,6 @@
 [submodule "vendor/js-inflate"]
 	path = vendor/js-inflate
 	url = git://github.com/augustl/js-inflate.git
+[submodule "vendor/zip.js"]
+	path = vendor/zip.js
+	url = https://github.com/gildas-lormeau/zip.js.git

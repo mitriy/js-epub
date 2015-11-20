@@ -26,49 +26,7 @@ jQuery.get("/epubs/dynamic/my.epub", function (data) {
 
 h2. Usage
 
-<pre><code>var epubFile = ...; // Use HTML5 files or download via XHR.
-var epub = new JSEpub(epubFile);
-
-var showFirstPage = function () {
-    // The spine lists all pages in correct order
-    var spine = epub.opf.spine[0];
-
-    // The manifest contains the href of the file
-    var href = epub.opf.manifest[spine]["href"];
-
-    // All the files are stored in here, indexed by href
-    var doc = epub.files[href];
-
-    // The doc is a DOMparser created DOM. You may want to
-    // work with a string version of the page contents.
-    var html = new XMLSerializer().serializeToString(doc);
-
-    // Use "html" to your hearts content!
-}
-
-// Each time something happens in the processing, the callbakc is called. The
-// step is a number, representing the actual step that was performed. You
-// can use this to render status messages to the user as you process the file.
-// The processor will also insert a tiny delay between each operation, so that
-// you don't get the browser slow script warnings.
-epub.processInSteps(function (step, extras) {
-    var msg;
-
-    if (step === 1) {
-        msg = "Unzipping";
-    } else if (step === 2) {
-        msg = "Uncompressing " + extras;
-    } else if (step === 3) {
-        msg = "Reading OPF";
-    } else if (step === 4) {
-        msg = "Post processing";
-    } else if (step === 5) {
-        msg = "Finishing";
-        showFirstPage();
-    }
-
-    // Render the "msg" here.
-});</code></pre>
+see demo.html
 
 The library is pretty low level, to give you all the flexibility you need when you handle your EPUBs.
 
@@ -76,9 +34,7 @@ h2. Installing and using
 
 JSEpub has the following dependencies:
 
-* "JSUnzip":http://github.com/augustl/js-unzip. EPUB files are packaged as a Zip
+* "zip.js":https://github.com/gildas-lormeau/zip.js. EPUB files are packaged as a Zip
   archive.
-* "JSInflate":http://github.com/augustl/js-inflate. Used to decompress the
-  compressed files in the Zip archive.
 
 Include these scripts on your page before you include js-epub. They don't require any configuration or initialization.
