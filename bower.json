@@ -1,0 +1,24 @@
+{
+  "name": "js-epub",
+  "main": "js-epub.js",
+  "homepage": "https://github.com/mitriy/js-epub",
+  "authors": [
+    "Dmitriy Kuzikov <dikuzikov@strikersoft.com>"
+  ],
+  "description": "Reads and handles the EPUB e-book format",
+  "moduleType": [],
+  "keywords": [
+    "epub"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "zip.js": "https://github.com/gildas-lormeau/zip.js.git"
+  }
+}
