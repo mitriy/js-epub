@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title></title>
+
+    <script type='text/javascript' src="vendor/zip.js/WebContent/zip.js"></script>
+    <script type='text/javascript' src="js-epub.js"></script>
+
+    <script type='text/javascript'>
+        window.onload = function() {
+
+            zip.workerScriptsPath = "vendor/zip.js/WebContent/";
+
+            var read = function (e) {
+                var file = e.target.files[0]; // Use HTML5 files or download via XHR.
+                var epub = new JSEpub(file);
+
+                var showPages = function () {
+                    var text = [];
+
+                    for (var i=0, l=epub.opf.spine.length; i<l; i++) {
+                        // The spine lists all pages in correct order
+                        var spine = epub.opf.spine[i];
+
+                        // The manifest contains the href of the file
+                        var href = epub.opf.manifest[spine]["href"];
+
+                        // All the files are stored in here, indexed by href
+                        var doc = epub.files[href];
+
+                        text.push(doc.body.textContent);
+                    }
+
+                    text = text.join('\n');
+                    console.log(text)
+                };
+
+                // Each time something happens in the processing, the callbakc is called. The
+                // step is a number, representing the actual step that was performed. You
+                // can use this to render status messages to the user as you process the file.
+                // The processor will also insert a tiny delay between each operation, so that
+                // you don't get the browser slow script warnings.
+                epub.processInSteps(function (step, extras) {
+                    var msg;
+
+                    if (step === 1) {
+                        msg = "Unzipping";
+                    } else if (step === 2) {
+                        msg = "Uncompressing " + extras;
+                    } else if (step === 3) {
+                        msg = "Reading OPF";
+                    } else if (step === 4) {
+                        msg = "Post processing";
+                    } else if (step === 5) {
+                        msg = "Finishing";
+                        showPages();
+                    }
+
+                    // Render the "msg" here.
+                    console.log(msg);
+                });
+            };
+
+            document.querySelector('input[type="file"]').addEventListener('change', read, false);
+        }
+    </script>
+
+</head>
+
+<body>
+    <input type="file">
+</body>
+</html>
