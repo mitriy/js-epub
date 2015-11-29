@@ -6,6 +6,21 @@
     GLOBAL.JSEpub = JSEpub;
 
     JSEpub.prototype = {
+
+        getCompressedFile: function (href) {
+            /** Get zip entry of opf file */
+            var target;
+            for(var i= 0, l=this.compressedFiles.length; i<l; i++) {
+                if (this.compressedFiles[i].filename === href) {
+                    target = this.compressedFiles[i];
+                    break;
+                }
+            }
+            if (! target) {
+                throw new Error('no compressed file found (' + href + ') in package');
+            }
+            return target;
+        },
         // None-blocking processing of the EPUB. The notifier callback will
         // get called with a number and a optional info parameter on various
         // steps of the processing:
@@ -27,11 +42,24 @@
                     notifier(1, self.compressedFiles.length);
                     self.files = {};
 
-                    self.uncompressAllFiles(notifier)
-                        .then(self.didUncompressAllFiles.bind(self, notifier))
-                        .catch(function () {
-                            notifier(-1);
-                            console.error('uncompress error', arguments);
+                    /** Read container.xml to retrieve opf */
+                    self.uncompressFile(self.getCompressedFile('META-INF/container.xml'))
+                        .then(function () {
+                            self.opfPath = self.getOpfPathFromContainer();
+
+                            /** Read opf to retrieve media files metadata */
+                            self.uncompressFile(self.getCompressedFile(self.opfPath))
+                                .then(function () {
+                                    self.readOpf(self.files[self.opfPath]);
+
+                                    /** Uncompress the rest files */
+                                    self.uncompressAllFiles(notifier)
+                                        .then(self.didUncompressAllFiles.bind(self, notifier))
+                                        .catch(function () {
+                                            notifier(-1);
+                                            console.error('uncompress error', arguments);
+                                        });
+                                });
                         });
                 })
                 .catch(notifier.bind(null, -1));
@@ -66,17 +94,19 @@
 
         didUncompressAllFiles: function (notifier) {
             notifier(3);
-            this.opfPath = this.getOpfPathFromContainer();
-            this.readOpf(this.files[this.opfPath]);
-
             notifier(4);
             this.postProcess();
             notifier(5);
         },
 
         uncompressFile: function (compressedFile) {
-            var writer = new zip.TextWriter();
             var self = this;
+            var mime = self.opf && this.findMediaTypeByHref(compressedFile.filename);
+
+            /** Binary files should be read as dara URI */
+            var writer = (! mime || mime.match(/(plain|xml|html|css)\w*$/i))
+                ? new zip.TextWriter()
+                : new zip.Data64URIWriter(mime);
 
             return new Promise(function (resolve, reject) {
                 compressedFile.getData(writer, function(data) {
@@ -255,9 +285,7 @@
 
         getDataUri: function (url, href) {
             var dataHref = this.resolvePath(url, href);
-            var mediaType = this.findMediaTypeByHref(dataHref);
-            var encodedData = escape(this.files[dataHref]);
-            return "data:" + mediaType + "," + encodedData;
+            return this.files[dataHref];
         },
 
         validate: function () {

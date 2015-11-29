@@ -29,10 +29,9 @@
                         // All the files are stored in here, indexed by href
                         var doc = epub.files[href];
 
-                        text.push(doc.body.textContent);
+                        text.push(doc.body.innerHTML);
                     }
 
-                    text = text.join('\n');
                     console.log(text)
                 };
 
