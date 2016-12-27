@@ -14,7 +14,7 @@ or download [zip package](https://github.com/mitriy/js-epub/archive/master.zip)
 
 ## Dependencies
 
-* [zip.js](https://github.com/gildas-lormeau/zip.js. EPUB files are packaged as a Zip archive
+* [zip.js](https://github.com/gildas-lormeau/zip.js). EPUB files are packaged as a Zip archive
 
 ## Usage
 
