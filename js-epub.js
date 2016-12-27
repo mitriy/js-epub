@@ -21,11 +21,12 @@
             }
             return target;
         },
+
         // None-blocking processing of the EPUB. The notifier callback will
         // get called with a number and a optional info parameter on various
         // steps of the processing:
         //
-        //  1: Unzipp(ing|ed). Number of total files passed as 2nd argument
+        //  1: Unzipped. Number of total files passed as 2nd argument
         //  2: Uncompressing file. File name passed as 2nd argument.
         //  3: Reading OPF
         //  4: Post processing
@@ -34,35 +35,48 @@
         // Error codes:
         //  -1: File is not a proper Zip file.
         processInSteps: function (notifier) {
-            notifier(1);
             var self = this;
 
-            this.unzipBlob(notifier)
+            this.getMetadata(notifier)
                 .then(function () {
-                    notifier(1, self.compressedFiles.length);
+                    /** Uncompress the rest files */
+                    self.uncompressAllFiles(notifier)
+                        .then(self.didUncompressAllFiles.bind(self, notifier))
+                        .catch(function () {
+                            notifier(-1);
+                            console.error('uncompress error', arguments);
+                        })
+                })
+                .catch(notifier.bind(null, -1));
+        },
+
+        getMetadata: function (notifier) {
+            notifier = notifier || function () {};
+            var self = this;
+
+            return this.unzipBlob(notifier)
+                .then(function () {
                     self.files = {};
+                    notifier(1, self.compressedFiles.length);
 
                     /** Read container.xml to retrieve opf */
-                    self.uncompressFile(self.getCompressedFile('META-INF/container.xml'))
+                    return self.uncompressFile(self.getCompressedFile('META-INF/container.xml'))
                         .then(function () {
                             self.opfPath = self.getOpfPathFromContainer();
 
                             /** Read opf to retrieve media files metadata */
-                            self.uncompressFile(self.getCompressedFile(self.opfPath))
+                            return self.uncompressFile(self.getCompressedFile(self.opfPath))
                                 .then(function () {
                                     self.readOpf(self.files[self.opfPath]);
+                                    notifier(3);
 
-                                    /** Uncompress the rest files */
-                                    self.uncompressAllFiles(notifier)
-                                        .then(self.didUncompressAllFiles.bind(self, notifier))
-                                        .catch(function () {
-                                            notifier(-1);
-                                            console.error('uncompress error', arguments);
-                                        });
+                                    return {
+                                        author: (self.opf.metadata['dc:creator'] || {})._text,
+                                        title: (self.opf.metadata['dc:title'] || {})._text
+                                    }
                                 });
                         });
-                })
-                .catch(notifier.bind(null, -1));
+                });
         },
 
         unzipBlob: function () {
@@ -93,7 +107,6 @@
         },
 
         didUncompressAllFiles: function (notifier) {
-            notifier(3);
             notifier(4);
             this.postProcess();
             notifier(5);
@@ -151,7 +164,7 @@
                 if (node.nodeType === 3) { continue }
 
                 var attrs = {};
-                for (var i2 = 0, il2 = node.attributes.length; i2 < il2; i2++) {
+                for (var i2 = 0, il2 = (node.attributes || []).length; i2 < il2; i2++) {
                     var attr = node.attributes[i2];
                     attrs[attr.name] = attr.value;
                 }
@@ -205,7 +218,7 @@
         },
 
         findMediaTypeByHref: function (href) {
-            for (key in this.opf.manifest) {
+            for (var key in this.opf.manifest) {
                 var item = this.opf.manifest[key];
                 if (item["href"] === href) {
                     return item["media-type"];
