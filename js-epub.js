@@ -190,9 +190,9 @@
         // Will modify all HTML and CSS files in place.
         postProcess: function () {
             for (var key in this.opf.manifest) {
-                var mediaType = this.opf.manifest[key]["media-type"]
-                var href = this.opf.manifest[key]["href"]
-                var result;
+                var mediaType = this.opf.manifest[key]["media-type"];
+                var href = this.opf.manifest[key]["href"];
+                var result = undefined;
 
                 if (mediaType === "text/css") {
                     result = this.postProcessCSS(href);
@@ -224,18 +224,27 @@
         },
 
         postProcessHTML: function (href) {
+            var crawl = function (nodes, attr) {
+                for (var i = 0, il = nodes.length; i < il; i++) {
+                    try {
+                        var image = nodes[i];
+                        var src = image.getAttribute(attr);
+                        if (/^data/.test(src)) { continue }
+                        image.setAttribute(attr, this.getDataUri(src, href));
+                    }
+                    catch (e) {
+                        console.log('failed to process image url', e);
+                    }
+                }
+            }.bind(this);
+
             var doc = this.xmlDocument(this.files[href]);
-
-            var images = doc.getElementsByTagName("img");
-            for (var i = 0, il = images.length; i < il; i++) {
-                var image = images[i];
-                var src = image.getAttribute("src");
-                if (/^data/.test(src)) { continue }
-                image.setAttribute("src", this.getDataUri(src, href))
-            }
-
             var head = doc.getElementsByTagName("head")[0];
-            var links = head.getElementsByTagName("link");
+            var links = head ? head.getElementsByTagName("link") : [];
+
+            crawl(doc.getElementsByTagName("img"), 'src');
+            crawl(doc.getElementsByTagName("image"), 'xlink:href');
+
             for (var i = 0, il = links.length; i < il; i++) {
                 var link = links[0];
                 if (link.getAttribute("type") === "text/css") {
